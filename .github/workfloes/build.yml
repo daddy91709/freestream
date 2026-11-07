@@ -1,0 +1,78 @@
+name: Build Android TV APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build FreeStream APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate App Icons and Android TV Banner
+        run: |
+          pip install Pillow
+          python create_icons.py
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
+
+      - name: Build APK with Gradle
+        run: |
+          gradle assembleDebug assembleRelease --stacktrace
+
+      - name: Prepare APKs for Distribution
+        run: |
+          mkdir -p release_apks
+          find app/build/outputs/apk/ -name "*.apk" -exec cp {} release_apks/ \;
+          ls -la release_apks/
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeStream-AndroidTV-APK
+          path: release_apks/*.apk
+          retention-days: 30
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: "FreeStream v1.0.0 (Android TV)"
+          body: |
+            ## FreeStream v1.0.0 - Android TV Edition 🚀
+            
+            APK pronto per l'installazione su Smart TV, Fire TV Stick, Google TV e Android TV Box.
+            
+            ### Caratteristiche principali:
+            - **Risoluzione Automatica del Dominio**: rileva all'avvio l'indirizzo funzionante e aggiornato.
+            - **Navigazione Ottimizzata per Telecomando (D-Pad)**: Spatial Navigation fluida con focus visivo cyan e zoom sulle locandine dei film/serie.
+            - **Controlli Video Integrati**: supporto ai tasti Play/Pause fisici, avanzamento/riavvolgimento di 10s e uscita a schermo intero.
+            - **Ad-Block & Anti-Popup**: navigazione pulita senza tab pubblicitari o redirect malevoli.
+            - **Modalità Mouse Virtuale**: premi il tasto Menu per muovere il puntatore su elementi specifici.
+            - **Icona e Banner 16:9 per Android TV**: grafica dedicata per la schermata home di Android TV.
+          files: release_apks/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
