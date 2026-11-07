@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- Ombra scura esterna per massimo contrasto sia su sfondi chiari che scuri -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#66000000"
+        android:strokeWidth="3.5"
+        android:pathData="M14,14 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+    <!-- Cerchio interno semitrasparente stile Amazon Silk -->
+    <path
+        android:fillColor="#22FFFFFF"
+        android:pathData="M14,14 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+    <!-- Anello circolare bianco solido -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.0"
+        android:pathData="M14,14 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+    <!-- Punto centrale di mira -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+</vector>

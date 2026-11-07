@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Silhouette controller / gamepad -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L17,6 C19.2,6 21,7.8 21,10 L21,14 C21,17.3 18.3,20 15,20 L14,20 L12.5,17 L11.5,17 L10,20 L9,20 C5.7,20 3,17.3 3,14 L3,10 C3,7.8 4.8,6 7,6 Z" />
+    <!-- D-Pad cyan -->
+    <path
+        android:fillColor="#00D2FF"
+        android:pathData="M7,10 L8,10 L8,9 L9,9 L9,10 L10,10 L10,11 L9,11 L9,12 L8,12 L8,11 L7,11 Z" />
+    <!-- Tasti di azione bianchi -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,9 m-0.9,0 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14.5,10.5 m-0.9,0 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17.5,10.5 m-0.9,0 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,12 m-0.9,0 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0" />
+</vector>

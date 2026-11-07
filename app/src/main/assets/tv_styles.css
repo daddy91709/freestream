@@ -1,8 +1,9 @@
-/* Stili personalizzati per interfaccia Android TV FreeStream */
+/* Stili personalizzati per interfaccia Android TV & Mobile FreeStream */
 
 /* Reset assoluto dei focus predefiniti del browser per eliminare il doppio riquadro */
 *:focus,
 *:focus-visible,
+*:focus-within,
 *:-webkit-direct-focus,
 a:focus,
 button:focus,
@@ -26,14 +27,22 @@ html, body {
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
     scroll-behavior: smooth !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+/* Permetti sempre selezione e digitazione nei campi input */
+input, textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
 }
 
 /* UNICO focus visivo attivo gestito dallo Spatial Engine TV */
 .tv-active-focus {
-    outline: 4px solid #00D2FF !important;
-    outline-offset: 3px !important;
+    outline: 3px solid #00D2FF !important;
+    outline-offset: 2px !important;
     transform: scale(1.05) !important;
-    box-shadow: 0 0 24px rgba(0, 210, 255, 0.85) !important;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.85) !important;
     z-index: 999999 !important;
     border-radius: 8px !important;
     transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s ease-out !important;

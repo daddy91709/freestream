@@ -9,8 +9,8 @@
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:focusable="false"
-        android:focusableInTouchMode="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
         android:visibility="gone" />
 
     <!-- Container Schermo Intero per Player HTML5 (CustomView) -->
@@ -85,33 +85,33 @@
             android:focusable="true" />
     </LinearLayout>
 
-    <!-- Floating HUD per notifica modalità (Telecomando / Cursore Virtuale) -->
-    <TextView
-        android:id="@+id/tvModeHud"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="28dp"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:background="@drawable/bg_hud_badge"
-        android:textColor="@color/white"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:elevation="12dp"
-        android:visibility="gone" />
-
-    <!-- Puntatore Virtuale Mouse per telecomando TV -->
+    <!-- Cursore Circolare Virtuale stile Silk Browser Fire TV -->
     <ImageView
         android:id="@+id/virtualCursor"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@drawable/ic_cursor"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_silk_cursor"
         android:visibility="gone"
-        android:elevation="15dp"
-        android:contentDescription="Virtual Mouse Cursor" />
+        android:elevation="20dp"
+        android:contentDescription="Virtual Silk Cursor" />
+
+    <!-- OSD HUD Centrale stile Mac (compare brevemente al cambio modalità) -->
+    <FrameLayout
+        android:id="@+id/osdHudContainer"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_osd_hud"
+        android:elevation="30dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/ivOsdIcon"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_osd_mouse"
+            android:contentDescription="OSD Mode Indicator" />
+    </FrameLayout>
 
 </FrameLayout>
