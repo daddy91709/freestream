@@ -227,7 +227,9 @@ class MainActivity : AppCompatActivity() {
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
 
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        // Niente setLayerType(HARDWARE): su Fire TV il video è su una superficie separata dietro al WebView
+        // e un layer offscreen ne impedisce la composizione (audio presente ma schermo nero).
+        // L'accelerazione hardware resta attiva a livello di finestra (manifest).
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
 
