@@ -88,8 +88,8 @@
     <!-- Cursore Circolare Virtuale stile Silk Browser Fire TV -->
     <ImageView
         android:id="@+id/virtualCursor"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:src="@drawable/ic_silk_cursor"
         android:visibility="gone"
         android:elevation="20dp"
