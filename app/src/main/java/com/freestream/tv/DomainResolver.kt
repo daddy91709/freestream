@@ -17,26 +17,23 @@ import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 object DomainResolver {
     private const val TAG = "DomainResolver"
-    private const val DEFAULT_DOMAIN = "https://streamingcommunityz.boo/"
     private const val PREFS = "domain_resolver"
     private const val KEY_LAST_DOMAIN = "last_domain"
     private const val RACE_TIMEOUT_MS = 9000L
     private const val PEEK_BYTES = 64L * 1024
     private const val BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    private const val OFFICIAL_LABEL = "streamingcommunityz"
 
-    // Solo i domini ufficiali "streamingcommunityz.*" (i vari "streaming-community.*" sono cloni fake)
-    private val SEED_URLS = listOf(
-        "https://streamingcommunityz.boo/"
-    )
-
+    // Unica fonte di verità remota: domains.json mantenuto da GitHub Actions in questo repository
     private val GITHUB_JSON_URLS = listOf(
-        "https://raw.githubusercontent.com/MrZaKaRiA/streamingcommunity/main/.github/.domain/domains.json",
-        "https://cdn.jsdelivr.net/gh/MrZaKaRiA/streamingcommunity@main/.github/.domain/domains.json"
+        "https://raw.githubusercontent.com/daddy91709/freestream/main/domains.json",
+        "https://cdn.jsdelivr.net/gh/daddy91709/freestream@main/domains.json"
     )
 
     private val client = OkHttpClient.Builder()
@@ -48,18 +45,31 @@ object DomainResolver {
         .build()
 
     /**
-     * Prova in parallelo l'ultimo dominio funzionante, i domini seme e quelli pubblicati nei JSON:
-     * vince il primo che risponde con una pagina valida del sito, le altre richieste vengono annullate.
+     * Mette in gara esclusivamente l'ultimo dominio funzionante in cache e il dominio pubblicato
+     * nel nostro `domains.json` (aggiornato da GitHub Actions).
+     * Vince il primo che risponde con una pagina valida del sito; in caso di timeout del probe,
+     * usa il dominio del nostro JSON o quello in cache.
      */
     suspend fun resolveActiveDomain(context: Context): String {
         val cached = getLastDomain(context)
-        val winner = withTimeoutOrNull(RACE_TIMEOUT_MS) { race(cached) }
+        val jsonFallback = AtomicReference<String?>(null)
+
+        val winner = withTimeoutOrNull(RACE_TIMEOUT_MS) {
+            race(cached, jsonFallback)
+        }
         if (winner != null) {
             saveDomain(context, winner)
             return winner
         }
-        Log.i(TAG, "Nessun candidato raggiungibile, uso ${cached ?: DEFAULT_DOMAIN}")
-        return cached ?: DEFAULT_DOMAIN
+
+        val fallback = jsonFallback.get() ?: cached
+        if (fallback != null) {
+            Log.i(TAG, "Probe non concluso entro il timeout, uso fallback fidato: $fallback")
+            saveDomain(context, fallback)
+            return fallback
+        }
+
+        throw IOException("Nessun dominio attivo disponibile (né da GitHub né in cache)")
     }
 
     /** Memorizza il dominio effettivamente in uso (es. dopo un redirect a un nuovo dominio durante la navigazione). */
@@ -76,9 +86,7 @@ object DomainResolver {
         return labels[labels.size - 2] == OFFICIAL_LABEL
     }
 
-    private const val OFFICIAL_LABEL = "streamingcommunityz"
-
-    private suspend fun race(cached: String?): String? = coroutineScope {
+    private suspend fun race(cached: String?, jsonFallback: AtomicReference<String?>): String? = coroutineScope {
         val results = Channel<String?>(Channel.UNLIMITED)
         val tried = java.util.Collections.synchronizedSet(mutableSetOf<String>())
         var pending = 0
@@ -91,16 +99,17 @@ object DomainResolver {
             }
             if (!tried.add(key)) return
             pending++
-            launch { results.send(probe(candidate)) }
+            launch { results.send(probe(key)) }
         }
 
         cached?.let { launchProbe(it) }
-        SEED_URLS.forEach { launchProbe(it) }
 
-        // I JSON vengono letti in parallelo; i domini trovati entrano nella stessa gara
+        // Legge in parallelo il nostro domains.json; il dominio trovato entra subito nella gara
         val jsonDomains = Channel<String?>(Channel.UNLIMITED)
         var jsonPending = GITHUB_JSON_URLS.size
-        GITHUB_JSON_URLS.forEach { url -> launch { jsonDomains.send(fetchJsonDomain(url)) } }
+        GITHUB_JSON_URLS.forEach { url ->
+            launch { jsonDomains.send(fetchJsonDomain(url)) }
+        }
 
         var winner: String? = null
         while (winner == null && (pending > 0 || jsonPending > 0)) {
@@ -111,7 +120,13 @@ object DomainResolver {
                 }
                 if (jsonPending > 0) jsonDomains.onReceive { d ->
                     jsonPending--
-                    if (d != null) launchProbe(d)
+                    if (d != null) {
+                        val clean = originOf(d)
+                        if (clean != null && isOfficialHost(Uri.parse(clean).host)) {
+                            jsonFallback.compareAndSet(null, clean)
+                            launchProbe(clean)
+                        }
+                    }
                 }
             }
         }
@@ -148,7 +163,11 @@ object DomainResolver {
 
     private suspend fun fetchJsonDomain(jsonUrl: String): String? {
         return try {
-            val request = Request.Builder().url(jsonUrl).header("User-Agent", "Mozilla/5.0 FreeStreamTV").build()
+            val request = Request.Builder()
+                .url(jsonUrl)
+                .header("User-Agent", "Mozilla/5.0 FreeStreamTV")
+                .header("Cache-Control", "no-cache")
+                .build()
             client.newCall(request).await().use { response ->
                 if (!response.isSuccessful) return null
                 val body = response.body?.string().orEmpty()

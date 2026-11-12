@@ -15,6 +15,5 @@ build/
 local.properties
 tools_poc/
 find_domain.py
-domains.json
 index.html
 *.apk
