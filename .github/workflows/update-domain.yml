@@ -1,0 +1,44 @@
+name: Update Active Domain (domains.json)
+
+on:
+  schedule:
+    # Esegue il controllo automatico ogni 6 ore
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-domain:
+    name: Resolve & Update Active Domain
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies & Run Resolver
+        run: |
+          pip install requests urllib3
+          python .github/scripts/update_domain.py
+
+      - name: Commit & Push if domains.json changed
+        run: |
+          if git diff --quiet domains.json; then
+            echo "Nessun cambio di dominio rilevato."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add domains.json
+            NEW_URL=$(python -c "import json; print(json.load(open('domains.json'))['streamingcommunity']['full_url'])")
+            git commit -m "chore(domain): update active domain to ${NEW_URL} [skip ci]"
+            git push origin HEAD:main
+          fi
