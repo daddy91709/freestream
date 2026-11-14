@@ -93,7 +93,7 @@
         android:src="@drawable/ic_silk_cursor"
         android:visibility="gone"
         android:elevation="20dp"
-        android:contentDescription="Virtual Silk Cursor" />
+        android:contentDescription="@string/virtual_cursor_desc" />
 
     <!-- OSD HUD Centrale stile Mac (compare brevemente al cambio modalità) -->
     <FrameLayout
@@ -111,7 +111,7 @@
             android:layout_height="60dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_osd_mouse"
-            android:contentDescription="OSD Mode Indicator" />
+            android:contentDescription="@string/osd_mode_desc" />
     </FrameLayout>
 
 </FrameLayout>
