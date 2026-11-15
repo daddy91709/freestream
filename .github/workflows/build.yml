@@ -35,7 +35,7 @@ jobs:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "${RUNNER_TEMP}/release.jks"
+            printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "${RUNNER_TEMP}/release.jks"
             echo "RELEASE_STORE_FILE=${RUNNER_TEMP}/release.jks" >> "$GITHUB_ENV"
           fi
 
