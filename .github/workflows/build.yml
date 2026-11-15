@@ -3,6 +3,10 @@ name: Build Android TV APK
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - "domains.json"
+      - ".github/workflows/update-domain.yml"
+      - ".github/scripts/**"
   workflow_dispatch:
 
 permissions:
@@ -55,14 +59,20 @@ jobs:
           path: release_apks/*.apk
           retention-days: 30
 
+      - name: Extract App Version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
-          name: "FreeStream v1.0.0 (Android TV)"
+          tag_name: v${{ steps.version.outputs.version }}
+          name: "FreeStream v${{ steps.version.outputs.version }} (Android TV)"
           body: |
-            ## FreeStream v1.0.0 - Android TV Edition 🚀
+            ## FreeStream v${{ steps.version.outputs.version }} - Android TV Edition 🚀
             
             APK pronto per l'installazione su Smart TV, Fire TV Stick, Google TV e Android TV Box.
             
