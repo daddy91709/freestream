@@ -73,18 +73,11 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: "FreeStream v${{ steps.version.outputs.version }} (Android TV)"
+          generate_release_notes: true
           body: |
-            ## FreeStream v${{ steps.version.outputs.version }} - Android TV Edition 🚀
+            ## FreeStream v${{ steps.version.outputs.version }} — Android TV Edition
 
-            APK pronto per l'installazione su Smart TV, Fire TV Stick, Google TV e Android TV Box.
-
-            ### Caratteristiche principali:
-            - **Risoluzione Automatica del Dominio**: rileva all'avvio l'indirizzo funzionante e aggiornato.
-            - **Navigazione Ottimizzata per Telecomando (D-Pad)**: Spatial Navigation fluida con focus visivo cyan e zoom sulle locandine dei film/serie.
-            - **Controlli Video Integrati**: supporto ai tasti Play/Pause fisici, avanzamento/riavvolgimento di 10s e uscita a schermo intero.
-            - **Ad-Block & Anti-Popup**: navigazione pulita senza tab pubblicitari o redirect malevoli.
-            - **Modalità Mouse Virtuale**: premi il tasto Menu per muovere il puntatore su elementi specifici.
-            - **Icona e Banner 16:9 per Android TV**: grafica dedicata per la schermata home di Android TV.
+            Signed APK ready for **Android TV**, **Google TV**, **Fire TV Stick**, and Android mobile/tablet devices.
           files: release_apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
