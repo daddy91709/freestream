@@ -631,6 +631,7 @@
     };
 
     function adoptOverlayFocus() {
+        if (isEditable(document.activeElement)) return;
         var roots = detectOverlayRoots();
         if (!roots.length || (current && current.isConnected && roots[0].contains(current))) return;
         var inside = collectCandidates().filter(function (c) { return roots[0].contains(c); });
