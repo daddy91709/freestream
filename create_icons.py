@@ -121,7 +121,7 @@ def generate_tv_banner(width=640, height=360):
 
 if __name__ == "__main__":
     res = "app/src/main/res"
-    for folder in ["drawable", "drawable-xhdpi", "mipmap-xxxhdpi", "mipmap-xxhdpi", "mipmap-xhdpi", "mipmap-hdpi", "mipmap-mdpi"]:
+    for folder in ["drawable", "drawable-xhdpi", "drawable-xxhdpi", "mipmap-xxxhdpi", "mipmap-xxhdpi", "mipmap-xhdpi", "mipmap-hdpi", "mipmap-mdpi"]:
         os.makedirs(f"{res}/{folder}", exist_ok=True)
 
     generate_square_icon(512, "rounded").save(f"{res}/drawable/app_icon.png")
@@ -132,9 +132,8 @@ if __name__ == "__main__":
         square.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher.png")
         round_icon.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher_round.png")
 
-    # Il banner va SOLO in drawable-xhdpi (640x360 px = 320x180 dp), come richiesto da Fire TV / Android TV
-    stale = f"{res}/drawable/tv_banner.png"
-    if os.path.exists(stale):
-        os.remove(stale)
+    # Banner 16:9 per Fire TV / Android TV su tutte le densità (320x180 dp)
+    generate_tv_banner(320, 180).save(f"{res}/drawable/tv_banner.png")
     generate_tv_banner(640, 360).save(f"{res}/drawable-xhdpi/tv_banner.png")
+    generate_tv_banner(960, 540).save(f"{res}/drawable-xxhdpi/tv_banner.png")
     print("Icone launcher e banner TV 16:9 generati.")
