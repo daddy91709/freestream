@@ -121,21 +121,40 @@ def generate_tv_banner(width=640, height=360):
 
 if __name__ == "__main__":
     res = "app/src/main/res"
-    for folder in ["drawable", "drawable-xhdpi", "drawable-xxhdpi", "mipmap-xxxhdpi", "mipmap-xxhdpi", "mipmap-xhdpi", "mipmap-hdpi", "mipmap-mdpi"]:
+    phone_mipmaps = [
+        (48, "mipmap-mdpi"),
+        (72, "mipmap-hdpi"),
+        (96, "mipmap-xhdpi"),
+        (144, "mipmap-xxhdpi"),
+        (192, "mipmap-xxxhdpi"),
+    ]
+    tv_mipmaps = [
+        (320, 180, "mipmap-television-mdpi"),
+        (480, 270, "mipmap-television-tvdpi"),
+        (480, 270, "mipmap-television-hdpi"),
+        (640, 360, "mipmap-television-xhdpi"),
+        (960, 540, "mipmap-television-xxhdpi"),
+        (1280, 720, "mipmap-television-xxxhdpi"),
+    ]
+    folders = (
+        ["drawable", "drawable-xhdpi", "drawable-xxhdpi"]
+        + [f for _, f in phone_mipmaps]
+        + [f for _, _, f in tv_mipmaps]
+    )
+    for folder in folders:
         os.makedirs(f"{res}/{folder}", exist_ok=True)
 
     generate_square_icon(512, "rounded").save(f"{res}/drawable/app_icon.png")
 
-    # Su Fire TV Launcher android:icon (@mipmap/ic_launcher) viene renderizzato in uno slot 16:9:
-    # generiamo il banner 16:9 full-bleed anche nei mipmap per evitare barre laterali grigie.
-    mipmap_banner_sizes = [
-        (320, 180, "mipmap-mdpi"),
-        (480, 270, "mipmap-hdpi"),
-        (640, 360, "mipmap-xhdpi"),
-        (960, 540, "mipmap-xxhdpi"),
-        (1280, 720, "mipmap-xxxhdpi"),
-    ]
-    for w, h, folder in mipmap_banner_sizes:
+    # Icone 1:1 per smartphone e tablet
+    square = generate_square_icon(512, "square")
+    round_icon = generate_square_icon(512, "round")
+    for size, folder in phone_mipmaps:
+        square.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher.png")
+        round_icon.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher_round.png")
+
+    # Banner 16:9 per Fire TV / Android TV (uiMode=television) in tutte le densità
+    for w, h, folder in tv_mipmaps:
         tv_tile = generate_tv_banner(w, h)
         tv_tile.save(f"{res}/{folder}/ic_launcher.png")
         tv_tile.save(f"{res}/{folder}/ic_launcher_round.png")
@@ -144,4 +163,4 @@ if __name__ == "__main__":
     generate_tv_banner(320, 180).save(f"{res}/drawable/tv_banner.png")
     generate_tv_banner(640, 360).save(f"{res}/drawable-xhdpi/tv_banner.png")
     generate_tv_banner(960, 540).save(f"{res}/drawable-xxhdpi/tv_banner.png")
-    print("Icone launcher e banner TV 16:9 generati.")
+    print("Icone smartphone 1:1, mipmap TV 16:9 e banner TV generati.")

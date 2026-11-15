@@ -20,6 +20,7 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:banner="@drawable/tv_banner"
         android:logo="@drawable/tv_banner"
         android:label="@string/app_name"
@@ -34,12 +35,21 @@
             android:exported="true"
             android:banner="@drawable/tv_banner"
             android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
             android:logo="@drawable/tv_banner"
             android:hardwareAccelerated="true"
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustPan|stateHidden"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode|smallestScreenSize">
-            
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode|smallestScreenSize" />
+
+        <activity-alias
+            android:name=".TvLauncher"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:banner="@drawable/tv_banner"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:logo="@drawable/tv_banner">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -48,7 +58,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <provider
             android:name="androidx.core.content.FileProvider"
