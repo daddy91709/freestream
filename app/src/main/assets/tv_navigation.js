@@ -26,7 +26,6 @@
             }
 
             // Deduplicazione annidamento:
-            // Se un elemento è figlio di uno già inserito, evita di aggiungerlo
             let isChild = false;
             for (let j = 0; j < filtered.length; j++) {
                 if (filtered[j].contains(el)) {
@@ -36,7 +35,6 @@
             }
             if (isChild) continue;
 
-            // Se l'elemento corrente contiene elementi già aggiunti, sostituiscili
             for (let j = filtered.length - 1; j >= 0; j--) {
                 if (el.contains(filtered[j])) {
                     filtered.splice(j, 1);
@@ -52,14 +50,18 @@
     function setActiveFocus(el) {
         if (!el) return;
 
+        // Se l'elemento precedente era un campo testo, togli il focus
         if (activeElement && activeElement !== el) {
             activeElement.classList.remove('tv-active-focus');
+            if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+                activeElement.blur();
+            }
         }
 
         activeElement = el;
         el.classList.add('tv-active-focus');
 
-        // Scroll morbido sia verticale che orizzontale
+        // Scroll fluido per centrare l'elemento
         try {
             el.scrollIntoView({
                 behavior: 'smooth',
@@ -67,11 +69,10 @@
                 inline: 'center'
             });
         } catch (e) {
-            // Fallback per browser datati
             el.scrollIntoView(false);
         }
 
-        // Se l'elemento è dentro un contenitore a scorrimento orizzontale (es. slider film)
+        // Se l'elemento è dentro un contenitore a scorrimento orizzontale
         let parent = el.parentElement;
         while (parent && parent !== document.body) {
             if (parent.scrollWidth > parent.clientWidth + 10) {
@@ -92,7 +93,6 @@
         if (elements.length === 0) return null;
 
         if (!activeElement || !document.body.contains(activeElement)) {
-            // Seleziona il primo elemento visibile in alto a sinistra
             const sorted = elements.slice().sort((a, b) => {
                 const ra = a.getBoundingClientRect();
                 const rb = b.getBoundingClientRect();
@@ -119,22 +119,19 @@
             let score = Infinity;
 
             if (direction === 'ArrowUp') {
-                // L'elemento deve trovarsi sopra
                 if (r.bottom <= cur.top + 15 || cY < curCenterY - 15) {
                     const distY = Math.max(0, cur.top - r.bottom);
                     let distX;
                     if (r.left <= cur.right && r.right >= cur.left) {
-                        distX = 0; // Sovrapposizione orizzontale
+                        distX = 0;
                     } else if (r.right < cur.left) {
                         distX = cur.left - r.right;
                     } else {
                         distX = r.left - cur.right;
                     }
-                    // Peso forte su Y per non saltare righe
                     score = (distY * 12.0) + (distX * 1.0);
                 }
             } else if (direction === 'ArrowDown') {
-                // L'elemento deve trovarsi sotto
                 if (r.top >= cur.bottom - 15 || cY > curCenterY + 15) {
                     const distY = Math.max(0, r.top - cur.bottom);
                     let distX;
@@ -148,22 +145,19 @@
                     score = (distY * 12.0) + (distX * 1.0);
                 }
             } else if (direction === 'ArrowLeft') {
-                // L'elemento deve trovarsi a sinistra
                 if (r.right <= cur.left + 15 || cX < curCenterX - 15) {
                     const distX = Math.max(0, cur.left - r.right);
                     let distY;
                     if (r.top <= cur.bottom && r.bottom >= cur.top) {
-                        distY = 0; // Stessa riga / sovrapposizione verticale
+                        distY = 0;
                     } else if (r.bottom < cur.top) {
                         distY = cur.top - r.bottom;
                     } else {
                         distY = r.top - cur.bottom;
                     }
-                    // Peso forte su Y per restare nella stessa riga
                     score = (distX * 1.0) + (distY * 18.0);
                 }
             } else if (direction === 'ArrowRight') {
-                // L'elemento deve trovarsi a destra
                 if (r.left >= cur.right - 15 || cX > curCenterX + 15) {
                     const distX = Math.max(0, r.left - cur.right);
                     let distY;
@@ -189,7 +183,6 @@
 
     // Navigazione invocata da Android Activity
     window.tvNavigate = function(direction) {
-        // Gestione speciale se player video attivo a schermo intero
         const video = document.querySelector('video');
         const isFullscreen = video && (document.fullscreenElement || window.innerHeight === screen.height);
 
@@ -215,7 +208,6 @@
         if (next) {
             setActiveFocus(next);
         } else {
-            // Scroll di fallback se non ci sono elementi visibili nella direzione richiesta
             if (direction === 'ArrowUp') {
                 window.scrollBy({ top: -350, behavior: 'smooth' });
                 setTimeout(() => {
@@ -243,9 +235,12 @@
             return;
         }
 
-        // Se è un campo di testo o input
+        // Se è un campo di testo o input: focus e apertura tastiera virtuale TV
         if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
             activeElement.focus();
+            if (window.AndroidBridge && window.AndroidBridge.onInputFocus) {
+                window.AndroidBridge.onInputFocus(true);
+            }
             return;
         }
 
@@ -266,6 +261,9 @@
     window.tvClearFocus = function() {
         if (activeElement) {
             activeElement.classList.remove('tv-active-focus');
+            if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+                activeElement.blur();
+            }
             activeElement = null;
         }
     };
@@ -289,6 +287,23 @@
         }
     };
 
+    // Ascolto eventi di focus per integrazione tastiera Fire TV
+    document.addEventListener('focusin', function(e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+            if (window.AndroidBridge && window.AndroidBridge.onInputFocus) {
+                window.AndroidBridge.onInputFocus(true);
+            }
+        }
+    });
+
+    document.addEventListener('focusout', function(e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+            if (window.AndroidBridge && window.AndroidBridge.onInputFocus) {
+                window.AndroidBridge.onInputFocus(false);
+            }
+        }
+    });
+
     // Inizializza focus al termine del caricamento della pagina
     function initFocus() {
         setTimeout(() => {
@@ -305,5 +320,5 @@
         window.addEventListener('load', initFocus);
     }
 
-    console.log("[FreeStream TV Navigation Engine 2.1] Inizializzato con successo.");
+    console.log("[FreeStream TV Navigation Engine 2.2] Inizializzato con supporto tastiera virtuale.");
 })();
