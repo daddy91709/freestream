@@ -2,10 +2,18 @@
     <string name="app_name">FreeStream</string>
     <string name="loading_message">Rilevamento del dominio attivo in corso…</string>
     <string name="error_message">Impossibile raggiungere il server. Verifica la connessione.</string>
+    <string name="error_dns_blocked">Il tuo operatore sta bloccando il dominio tramite DNS.\nImposta il DNS privato/manuale su 1.1.1.1 (Cloudflare) o 8.8.8.8 (Google) nelle impostazioni di rete della TV e riprova.</string>
     <string name="retry">Riprova</string>
     <string name="connecting_message">Connessione al dominio…</string>
     <string name="press_back_again">Premi di nuovo per uscire da FreeStream</string>
     <string name="external_link_blocked">Link esterno bloccato</string>
     <string name="virtual_cursor_desc">Cursore virtuale</string>
     <string name="osd_mode_desc">Indicatore modalità di controllo</string>
+    <string name="update_available_title">Aggiornamento disponibile (v%1$s)</string>
+    <string name="update_available_message">È disponibile una nuova versione di FreeStream.\n\n%1$s</string>
+    <string name="update_available_message_default">È disponibile una nuova versione di FreeStream pronta per il download e l\'installazione.</string>
+    <string name="update_now">Aggiorna ora</string>
+    <string name="update_later">Più tardi</string>
+    <string name="update_downloading">Download aggiornamento in corso…</string>
+    <string name="update_error">Impossibile scaricare l\'aggiornamento</string>
 </resources>

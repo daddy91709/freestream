@@ -73,6 +73,17 @@
         return /\/(watch|iframe)\//.test(location.pathname) || !!document.fullscreenElement;
     }
 
+    function syncWatchKeyToFrames() {
+        if (!isPlayerPage()) return;
+        var key = location.pathname + location.search;
+        var frames = document.getElementsByTagName('iframe');
+        for (var i = 0; i < frames.length; i++) {
+            try {
+                frames[i].contentWindow.postMessage({ __fsWatchKey: key }, '*');
+            } catch (e) { /* ignore */ }
+        }
+    }
+
     // ---------------------------------------------------------------- stili + anello di focus
     function injectStyles() {
         if (!window.__fsCss || document.getElementById('fs-tv-styles')) return;
@@ -654,13 +665,38 @@
         if (mouseMode) return;
 
         if (isPlayerPage()) {
-            if (window.fsPlayer) {
-                if (direction === 'ArrowRight') window.fsPlayer('seek', 10);
-                else if (direction === 'ArrowLeft') window.fsPlayer('seek', -10);
-                else if (direction === 'Enter') window.fsPlayer('toggle');
-                else window.fsPlayer('activity');
+            syncWatchKeyToFrames();
+            if (document.fullscreenElement) {
+                if (window.fsPlayer) {
+                    if (direction === 'ArrowRight') window.fsPlayer('seek', { delta: 10, repeat: !!fast });
+                    else if (direction === 'ArrowLeft') window.fsPlayer('seek', { delta: -10, repeat: !!fast });
+                    else if (direction === 'Enter') window.fsPlayer('toggle');
+                    else window.fsPlayer('activity');
+                }
+                return;
             }
-            return;
+            // Se non c'è un controllo pagina selezionato: ←/→ fanno seek, OK play/pausa,
+            // ↑/↓ svegliano il player e spostano il focus sui pulsanti della pagina se presenti
+            if (!current || !current.isConnected) {
+                current = null;
+                if (direction === 'ArrowRight') {
+                    if (window.fsPlayer) window.fsPlayer('seek', { delta: 10, repeat: !!fast });
+                    return;
+                }
+                if (direction === 'ArrowLeft') {
+                    if (window.fsPlayer) window.fsPlayer('seek', { delta: -10, repeat: !!fast });
+                    return;
+                }
+                if (direction === 'Enter') {
+                    if (window.fsPlayer) window.fsPlayer('toggle');
+                    return;
+                }
+                if (window.fsPlayer) window.fsPlayer('activity');
+                var pageCands = collectCandidates();
+                var picked = pickInitial(pageCands);
+                if (picked) setFocus(picked, fast);
+                return;
+            }
         }
 
         if (direction === 'Enter') {
@@ -767,6 +803,13 @@
             }, 350);
             return true;
         }
+        if (isPlayerPage() && current) {
+            current.classList.remove('tv-active-focus');
+            current = null;
+            lastRect = null;
+            hideRing();
+            return true;
+        }
         return false;
     };
 
@@ -798,6 +841,17 @@
     // ---------------------------------------------------------------- navigazione SPA (Inertia)
     function onRouteChange() {
         setTimeout(function () {
+            if (isPlayerPage()) {
+                if (current) {
+                    current.classList.remove('tv-active-focus');
+                    current = null;
+                }
+                lastRect = null;
+                hideRing();
+                syncWatchKeyToFrames();
+                setTimeout(syncWatchKeyToFrames, 1500);
+                return;
+            }
             if (!current || !current.isConnected) {
                 current = null;
                 lastRect = null;
@@ -847,6 +901,10 @@
             }
         });
         scheduleInitialFocus();
+        if (isPlayerPage()) {
+            syncWatchKeyToFrames();
+            setTimeout(syncWatchKeyToFrames, 1500);
+        }
     }
 
     if (document.readyState === 'loading') {

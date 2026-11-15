@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -18,6 +19,8 @@ import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -43,8 +46,17 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
     private var activeDomain: String? = null
     private var discoveryJob: Job? = null
+    private var dnsCheckJob: Job? = null
+    private var updateJob: Job? = null
+    private var updateDialog: AlertDialog? = null
     private var isTv = false
     private var networkCallbackRegistered = false
+
+    private val backPressedCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            remoteKeyHandler.handleBackPress()
+        }
+    }
 
     private val connectivityManager by lazy {
         getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -92,15 +104,29 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
             isOverlayBlockingNavigation = {
                 binding.errorLayout.visibility == View.VISIBLE || binding.loadingLayout.visibility == View.VISIBLE
             },
+            tryRecoverFromErrorBack = {
+                if (binding.errorLayout.visibility == View.VISIBLE && webView.canGoBack()) {
+                    binding.errorLayout.visibility = View.GONE
+                    webView.visibility = View.VISIBLE
+                    webView.goBack()
+                    true
+                } else {
+                    false
+                }
+            },
             isCustomViewActive = { customView != null },
             hideCustomView = { onHideCustomView() },
             evalJs = ::js,
             evalJsWithResult = { code, cb -> webView.evaluateJavascript(code) { cb(it) } },
-            onExitConfirmed = { finish() },
+            onExitConfirmed = {
+                backPressedCallback.isEnabled = false
+                finish()
+            },
             showBackExitToast = {
                 Toast.makeText(this, getString(R.string.press_back_again), Toast.LENGTH_SHORT).show()
             }
         )
+        onBackPressedDispatcher.addCallback(this, backPressedCallback)
         webViewConfigurator = WebViewConfigurator(applicationContext, this)
 
         binding.btnRetry.setOnClickListener {
@@ -108,6 +134,10 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
         }
 
         webViewConfigurator.configure(webView, isTv)
+
+        if (savedInstanceState == null) {
+            checkForAppUpdate()
+        }
 
         if (savedInstanceState != null) {
             activeDomain = savedInstanceState.getString(STATE_ACTIVE_DOMAIN)
@@ -162,6 +192,10 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
     override fun onDestroy() {
         discoveryJob?.cancel()
+        dnsCheckJob?.cancel()
+        updateJob?.cancel()
+        updateDialog?.dismiss()
+        updateDialog = null
         keyboardBridge.destroy()
         cursorController.destroy()
         remoteKeyHandler.destroy()
@@ -251,6 +285,7 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
     private fun startDomainDiscoveryAndLoad() {
         discoveryJob?.cancel()
+        dnsCheckJob?.cancel()
         binding.errorLayout.visibility = View.GONE
         binding.loadingLayout.visibility = View.VISIBLE
         binding.tvLoadingStatus.text = getString(R.string.loading_message)
@@ -272,7 +307,18 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
     private fun showErrorState() {
         binding.loadingLayout.visibility = View.GONE
         binding.errorLayout.visibility = View.VISIBLE
+        binding.tvErrorMessage.text = getString(R.string.error_message)
         binding.btnRetry.requestFocus()
+
+        val candidateUrl = activeDomain ?: return
+        dnsCheckJob?.cancel()
+        dnsCheckJob = lifecycleScope.launch {
+            if (DomainResolver.isBlockedBySystemDns(candidateUrl) &&
+                binding.errorLayout.visibility == View.VISIBLE
+            ) {
+                binding.tvErrorMessage.text = getString(R.string.error_dns_blocked)
+            }
+        }
     }
 
     private fun recreateWebView(crashedWebView: WebView) {
@@ -343,6 +389,57 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
         if (packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) return true
         return false
+    }
+
+    private fun checkForAppUpdate() {
+        updateJob?.cancel()
+        updateJob = lifecycleScope.launch {
+            val release = AppUpdater.checkForUpdate(applicationContext, getAppVersionName()) ?: return@launch
+            showUpdateDialog(release)
+        }
+    }
+
+    private fun showUpdateDialog(release: AppUpdater.ReleaseInfo) {
+        if (isFinishing || isDestroyed) return
+        val message = if (release.releaseNotes.isNotBlank()) {
+            getString(R.string.update_available_message, release.releaseNotes.take(400))
+        } else {
+            getString(R.string.update_available_message_default)
+        }
+        updateDialog?.dismiss()
+        updateDialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_available_title, release.versionName))
+            .setMessage(message)
+            .setPositiveButton(R.string.update_now) { _, _ ->
+                startUpdateDownload(release)
+            }
+            .setNegativeButton(R.string.update_later) { _, _ ->
+                AppUpdater.markVersionSkipped(applicationContext, release.versionName)
+            }
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun startUpdateDownload(release: AppUpdater.ReleaseInfo) {
+        Toast.makeText(this, getString(R.string.update_downloading), Toast.LENGTH_SHORT).show()
+        updateJob?.cancel()
+        updateJob = lifecycleScope.launch {
+            val started = AppUpdater.downloadAndInstall(applicationContext, release)
+            if (!started && !isFinishing && !isDestroyed) {
+                Toast.makeText(this@MainActivity, getString(R.string.update_error), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun getAppVersionName(): String {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }
+        }.getOrNull().orEmpty().ifBlank { "1.0.0" }
     }
 
     private fun js(code: String) {

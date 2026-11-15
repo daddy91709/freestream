@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Message
 import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
@@ -59,6 +60,8 @@ class WebViewConfigurator(
         settings.builtInZoomControls = false
         settings.displayZoomControls = false
         settings.allowFileAccess = false
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = false
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.userAgentString = UserAgentProvider.getUserAgent(webView.context, isTv)
 
@@ -103,6 +106,16 @@ class WebViewConfigurator(
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message?
+            ): Boolean {
+                // Blocca nativamente l'apertura di nuove finestre/tab popup anche da iframe cross-origin
+                return false
+            }
+
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                 callbacks.onShowCustomView(view, callback)
             }
@@ -113,6 +126,7 @@ class WebViewConfigurator(
         }
 
         var mainFrameError = false
+        var hasLoadedSite = false
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
@@ -127,18 +141,22 @@ class WebViewConfigurator(
                     webView.evaluateJavascript(playerAgentJs, null)
                     webView.evaluateJavascript(topFrameJs, null)
                 }
+                if (!mainFrameError && url != null) {
+                    val host = runCatching { URI(url).host }.getOrNull()
+                    if (DomainResolver.isOfficialHost(host)) {
+                        hasLoadedSite = true
+                    }
+                }
                 callbacks.onPageFinished(url, mainFrameError)
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val uri = request?.url ?: return false
-                val scheme = uri.scheme?.lowercase()
-                val host = uri.host.orEmpty()
-                val internal = scheme == "https" && DomainResolver.isOfficialHost(host)
-                if (!internal && request.isForMainFrame && request.hasGesture()) {
+                val isMainFrame = request?.isForMainFrame == true
+                val allowed = AdBlocker.shouldAllowNavigation(request?.url?.toString(), isMainFrame)
+                if (!allowed && isMainFrame && request?.hasGesture() == true) {
                     callbacks.onExternalLinkBlocked()
                 }
-                return !internal
+                return !allowed
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
@@ -151,10 +169,10 @@ class WebViewConfigurator(
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
-                if (request?.isForMainFrame == true) {
-                    mainFrameError = true
-                    callbacks.onMainFrameError()
-                }
+                if (request?.isForMainFrame != true) return
+                if (error?.errorCode == ERROR_UNSUPPORTED_SCHEME) return
+                mainFrameError = true
+                callbacks.onMainFrameError()
             }
 
             override fun onReceivedHttpError(
@@ -164,7 +182,7 @@ class WebViewConfigurator(
             ) {
                 super.onReceivedHttpError(view, request, errorResponse)
                 val status = errorResponse?.statusCode ?: 0
-                if (request?.isForMainFrame == true && status >= 400) {
+                if (AdBlocker.isFatalMainFrameHttpError(status, request?.isForMainFrame == true, hasLoadedSite)) {
                     mainFrameError = true
                     callbacks.onMainFrameError()
                 }

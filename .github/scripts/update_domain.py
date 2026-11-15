@@ -18,7 +18,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 import urllib3
@@ -74,32 +74,49 @@ def is_genuine_page(resp: requests.Response) -> bool:
 def probe_candidate(url: str, timeout: int = 8) -> str | None:
     current = url
     for _ in range(10):
+        ssl_verified = True
         try:
             resp = requests.get(
                 current,
                 headers=HEADERS,
                 timeout=timeout,
                 allow_redirects=False,
-                verify=False,
+                verify=True,
             )
-            if resp.status_code in (301, 302, 303, 307, 308) and "Location" in resp.headers:
-                nxt = resp.headers["Location"]
-                if nxt.startswith("/"):
-                    p = urlparse(current)
-                    nxt = f"{p.scheme}://{p.netloc}{nxt}"
-                logging.info("Redirect: %s -> %s (HTTP %s)", current, nxt, resp.status_code)
-                current = nxt
-                continue
-
-            if resp.status_code == 200 and is_genuine_page(resp):
-                final_origin = origin_of(resp.url)
-                if final_origin:
-                    logging.info("Dominio attivo e verificato: %s", final_origin)
-                    return final_origin
-            return None
+        except requests.exceptions.SSLError as ssl_exc:
+            logging.warning("Errore SSL per %s (%s): verifico solo eventuale redirect", current, ssl_exc)
+            ssl_verified = False
+            try:
+                resp = requests.get(
+                    current,
+                    headers=HEADERS,
+                    timeout=timeout,
+                    allow_redirects=False,
+                    verify=False,
+                )
+            except requests.RequestException as exc:
+                logging.warning("Connessione fallita per %s: %s", current, exc)
+                return None
         except requests.RequestException as exc:
             logging.warning("Connessione fallita per %s: %s", current, exc)
             return None
+
+        if resp.status_code in (301, 302, 303, 307, 308) and "Location" in resp.headers:
+            nxt = urljoin(current, resp.headers["Location"])
+            logging.info("Redirect: %s -> %s (HTTP %s)", current, nxt, resp.status_code)
+            current = nxt
+            continue
+
+        if not ssl_verified:
+            logging.error("Scartato %s: certificato SSL non valido sulla risposta finale", current)
+            return None
+
+        if resp.status_code == 200 and is_genuine_page(resp):
+            final_origin = origin_of(resp.url)
+            if final_origin:
+                logging.info("Dominio attivo e verificato: %s", final_origin)
+                return final_origin
+        return None
     return None
 
 
