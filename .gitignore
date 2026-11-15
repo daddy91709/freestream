@@ -17,4 +17,6 @@ tools_poc/
 find_domain.py
 index.html
 *.apk
+*.jks
+*.keystore
 __pycache__/

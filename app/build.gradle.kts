@@ -25,19 +25,14 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    val envStoreFile = System.getenv("RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
     signingConfigs {
-        create("release") {
-            val envStoreFile = System.getenv("RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
-            if (envStoreFile != null) {
+        if (envStoreFile != null) {
+            create("release") {
                 storeFile = file(envStoreFile)
                 storePassword = System.getenv("RELEASE_STORE_PASSWORD")
                 keyAlias = System.getenv("RELEASE_KEY_ALIAS")
                 keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-            } else {
-                storeFile = file("keystore/freestream-release.jks")
-                storePassword = "freestream"
-                keyAlias = "freestream"
-                keyPassword = "freestream"
             }
         }
     }
@@ -50,7 +45,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (envStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
