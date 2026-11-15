@@ -25,6 +25,8 @@
     var domDirty = true;
     var lastScan = 0;
     var initTimer = null;
+    var lastEditableTapEl = null;
+    var lastEditableTapTime = 0;
 
     function bridge() { return window.AndroidBridge; }
     function now() { return Date.now(); }
@@ -142,6 +144,14 @@
 
     function tick() {
         rafId = 0;
+        if (!mouseMode && !document.fullscreenElement &&
+            isEditable(document.activeElement) && document.activeElement.isConnected &&
+            current !== document.activeElement) {
+            if (current) current.classList.remove('tv-active-focus');
+            current = document.activeElement;
+            current.classList.add('tv-active-focus');
+            lostSince = 0;
+        }
         if (current && !mouseMode && !document.fullscreenElement) {
             if (current.isConnected) {
                 lostSince = 0;
@@ -156,6 +166,9 @@
                 } else {
                     hideRing();
                 }
+            } else if (isEditable(document.activeElement)) {
+                lostSince = 0;
+                hideRing();
             } else {
                 // Elemento rimosso dal re-render di Vue: recupera il più vicino all'ultima posizione
                 hideRing();
@@ -513,7 +526,7 @@
         attempt = attempt || 0;
         clearTimeout(initTimer);
         initTimer = setTimeout(function () {
-            if (mouseMode || isPlayerPage()) return;
+            if (mouseMode || isPlayerPage() || isEditable(document.activeElement)) return;
             if (current && current.isConnected) return;
             var cands = collectCandidates();
             var el = pickInitial(cands);
@@ -621,6 +634,8 @@
         var el = current;
         if (isEditable(el)) {
             ensureVisible(el, true);
+            lastEditableTapEl = el;
+            lastEditableTapTime = now();
             el.focus();
             if (!nativeTap(el)) sendInputFocus(true);
             return;
@@ -646,6 +661,8 @@
     window.tvTapActiveInput = function () {
         var el = document.activeElement;
         if (!isEditable(el)) return false;
+        lastEditableTapEl = el;
+        lastEditableTapTime = now();
         if (!nativeTap(el)) sendInputFocus(true);
         return true;
     };
@@ -824,7 +841,24 @@
 
     // ---------------------------------------------------------------- tastiera virtuale
     document.addEventListener('focusin', function (e) {
-        if (isEditable(e.target)) {
+        var el = e.target;
+        if (isEditable(el)) {
+            if (current && current !== el) {
+                current.classList.remove('tv-active-focus');
+            }
+            current = el;
+            el.classList.add('tv-active-focus');
+            lostSince = 0;
+            wakeTracker(600);
+            if (lastEditableTapEl !== el || now() - lastEditableTapTime > 500) {
+                lastEditableTapEl = el;
+                lastEditableTapTime = now();
+                setTimeout(function () {
+                    if (document.activeElement === el && el.isConnected) {
+                        nativeTap(el);
+                    }
+                }, 30);
+            }
             sendInputFocus(true);
         }
     }, true);
@@ -853,6 +887,7 @@
                 setTimeout(syncWatchKeyToFrames, 1500);
                 return;
             }
+            if (isEditable(document.activeElement)) return;
             if (!current || !current.isConnected) {
                 current = null;
                 lastRect = null;

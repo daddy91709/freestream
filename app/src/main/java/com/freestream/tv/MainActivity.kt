@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
         webView = binding.webView
 
-        keyboardBridge = SoftKeyboardBridge(window) { webView }
+        keyboardBridge = SoftKeyboardBridge { webView }
         cursorController = VirtualCursorController(
             virtualCursor = binding.virtualCursor,
             osdHudContainer = binding.osdHudContainer,
@@ -187,7 +187,9 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveFullscreen()
+        if (hasFocus && (!::keyboardBridge.isInitialized || !keyboardBridge.isInputFocused)) {
+            applyImmersiveFullscreen()
+        }
     }
 
     override fun onDestroy() {
@@ -271,6 +273,9 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
             resources.displayMetrics.density
         }
         cursorController.dispatchTap(cssX * factor, cssY * factor)
+        if (keyboardBridge.isInputFocused) {
+            keyboardBridge.scheduleShowKeyboard()
+        }
     }
 
     override fun onExternalLinkBlocked() {
@@ -357,7 +362,6 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
     }
 
     private fun applyImmersiveFullscreen() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

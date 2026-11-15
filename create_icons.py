@@ -126,11 +126,19 @@ if __name__ == "__main__":
 
     generate_square_icon(512, "rounded").save(f"{res}/drawable/app_icon.png")
 
-    square = generate_square_icon(512, "square")
-    round_icon = generate_square_icon(512, "round")
-    for size, folder in [(192, "mipmap-xxxhdpi"), (144, "mipmap-xxhdpi"), (96, "mipmap-xhdpi"), (72, "mipmap-hdpi"), (48, "mipmap-mdpi")]:
-        square.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher.png")
-        round_icon.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher_round.png")
+    # Su Fire TV Launcher android:icon (@mipmap/ic_launcher) viene renderizzato in uno slot 16:9:
+    # generiamo il banner 16:9 full-bleed anche nei mipmap per evitare barre laterali grigie.
+    mipmap_banner_sizes = [
+        (320, 180, "mipmap-mdpi"),
+        (480, 270, "mipmap-hdpi"),
+        (640, 360, "mipmap-xhdpi"),
+        (960, 540, "mipmap-xxhdpi"),
+        (1280, 720, "mipmap-xxxhdpi"),
+    ]
+    for w, h, folder in mipmap_banner_sizes:
+        tv_tile = generate_tv_banner(w, h)
+        tv_tile.save(f"{res}/{folder}/ic_launcher.png")
+        tv_tile.save(f"{res}/{folder}/ic_launcher_round.png")
 
     # Banner 16:9 per Fire TV / Android TV su tutte le densità (320x180 dp)
     generate_tv_banner(320, 180).save(f"{res}/drawable/tv_banner.png")

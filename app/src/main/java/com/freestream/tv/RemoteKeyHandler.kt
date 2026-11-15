@@ -175,7 +175,7 @@ class RemoteKeyHandler(
             confirmExitOrToast()
             return
         }
-        if (keyboardBridge.isInputFocused && !cursorController.isMouseMode) {
+        if (keyboardBridge.isInputFocused) {
             keyboardBridge.leaveInputField(evalJs)
             return
         }

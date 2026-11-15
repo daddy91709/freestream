@@ -3,14 +3,10 @@ package com.freestream.tv
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.view.Window
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 
 class SoftKeyboardBridge(
-    private val window: Window,
     private val webViewProvider: () -> WebView
 ) {
     var isInputFocused: Boolean = false
@@ -40,15 +36,14 @@ class SoftKeyboardBridge(
         if (!isInputFocused) return
         val webView = webViewProvider()
         if (!webView.hasFocus()) webView.requestFocus()
-        WindowCompat.getInsetsController(window, webView).show(WindowInsetsCompat.Type.ime())
         val imm = webView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+        @Suppress("DEPRECATION")
+        imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED)
     }
 
     fun hideSoftKeyboard() {
         handler.removeCallbacks(showKeyboardRunnable)
         val webView = webViewProvider()
-        WindowCompat.getInsetsController(window, webView).hide(WindowInsetsCompat.Type.ime())
         val imm = webView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(webView.windowToken, 0)
     }
@@ -71,6 +66,6 @@ class SoftKeyboardBridge(
     }
 
     companion object {
-        private const val KEYBOARD_SHOW_DELAY_MS = 220L
+        private const val KEYBOARD_SHOW_DELAY_MS = 260L
     }
 }
