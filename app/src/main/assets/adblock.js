@@ -1,11 +1,13 @@
 (function() {
     'use strict';
-    
+
+    if (window.__fsAdblock) return;
+    window.__fsAdblock = true;
+
     // Blocca window.open per evitare tab/popunder pubblicitari
-    const originalOpen = window.open;
-    window.open = function(url, target, features) {
+    window.open = function(url) {
         if (!url || typeof url !== 'string') return null;
-        
+
         // Consenti solo navigazioni interne sul dominio corrente
         const currentHost = window.location.hostname;
         try {
@@ -29,7 +31,6 @@
         }
     }
 
-    // Esegui la pulizia sia subito che all'inserimento di nuovi nodi DOM
     document.addEventListener('DOMContentLoaded', sanitizeLinks);
     setInterval(sanitizeLinks, 2000);
 })();

@@ -1,17 +1,14 @@
 /* Stili personalizzati per interfaccia Android TV & Mobile FreeStream */
 
-/* Reset assoluto dei focus predefiniti del browser per eliminare il doppio riquadro */
+/* Reset dei focus predefiniti del browser: l'unico indicatore è l'anello #fs-focus-ring */
 *:focus,
 *:focus-visible,
-*:focus-within,
-*:-webkit-direct-focus,
 a:focus,
 button:focus,
 div:focus,
 img:focus,
 svg:focus {
     outline: none !important;
-    box-shadow: none !important;
     -webkit-tap-highlight-color: transparent !important;
 }
 
@@ -26,7 +23,6 @@ svg:focus {
 html, body {
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
-    scroll-behavior: smooth !important;
     -webkit-user-select: none !important;
     user-select: none !important;
 }
@@ -37,24 +33,42 @@ input, textarea {
     user-select: text !important;
 }
 
-/* UNICO focus visivo attivo gestito dallo Spatial Engine TV */
-.tv-active-focus {
-    outline: 3px solid #00D2FF !important;
-    outline-offset: 2px !important;
-    transform: scale(1.05) !important;
-    box-shadow: 0 0 20px rgba(0, 210, 255, 0.85) !important;
-    z-index: 999999 !important;
-    border-radius: 8px !important;
-    transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s ease-out !important;
+/* Anello di focus TV: overlay unico che si sposta con animazione fluida,
+   indipendente dal layout del sito (funziona anche su <a> inline e caroselli) */
+#fs-focus-ring {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 0;
+    height: 0;
+    box-sizing: border-box !important;
+    pointer-events: none !important;
+    z-index: 2147483647 !important;
+    border: 3px solid #00D2FF !important;
+    border-radius: 10px !important;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 22px rgba(0, 210, 255, 0.75) !important;
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+    will-change: transform, width, height;
+    contain: strict;
 }
 
-/* Evita che elementi figli all'interno della card focalizzata mostrino bordi o bagliori */
-.tv-active-focus * {
-    outline: none !important;
-    box-shadow: none !important;
+#fs-focus-ring.fs-visible {
+    opacity: 1;
 }
 
-/* Migliora la visualizzazione del player video */
+#fs-focus-ring.fs-animate {
+    transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1),
+                width 0.16s cubic-bezier(0.2, 0, 0, 1),
+                height 0.16s cubic-bezier(0.2, 0, 0, 1),
+                opacity 0.15s ease-out;
+}
+
+/* Leggero risalto del contenuto selezionato senza alterarne il layout */
+.tv-active-focus img {
+    filter: brightness(1.12) !important;
+}
+
 video {
     outline: none !important;
 }

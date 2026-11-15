@@ -3,4 +3,7 @@
     <string name="loading_message">Rilevamento del dominio attivo in corso…</string>
     <string name="error_message">Impossibile raggiungere il server. Verifica la connessione.</string>
     <string name="retry">Riprova</string>
+    <string name="connecting_message">Connessione al dominio…</string>
+    <string name="press_back_again">Premi di nuovo per uscire da FreeStream</string>
+    <string name="external_link_blocked">Link esterno bloccato</string>
 </resources>

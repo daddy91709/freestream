@@ -7,7 +7,9 @@ Client leggero per Android TV, Google TV e Fire TV Stick.
 - **Navigazione Ottimizzata per Telecomando (D-Pad)**: Spatial Navigation fluida con focus visivo cyan e zoom sulle locandine dei film/serie.
 - **Controlli Video Integrati**: supporto ai tasti Play/Pause fisici del telecomando, avanti/indietro veloce (+/- 10 secondi) e uscita automatica dallo schermo intero.
 - **Ad-Block & Anti-Popup**: navigazione pulita senza tab pubblicitari o redirect esterni.
-- **Modalità Mouse Virtuale**: premi il tasto Menu per muovere un puntatore virtuale su selettori specifici o elementi complessi.
+- **Modalità Mouse Virtuale**: premi il tasto Menu (o tieni premuto OK) per muovere un puntatore fluido con accelerazione; spingi contro i bordi per scorrere la pagina.
+- **Controllo player**: OK = play/pausa, ←/→ = ±10s, tasti multimediali supportati anche nel player integrato (iframe).
+- **BACK intelligente**: chiude prima menu laterale/dropdown, poi torna indietro nella cronologia.
 - **Icona e Banner TV 16:9**: grafica nativa per la schermata home di Android TV.
 
 ## Build e Rilascio Automatico
