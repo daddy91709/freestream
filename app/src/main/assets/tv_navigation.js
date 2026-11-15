@@ -29,6 +29,39 @@
     function bridge() { return window.AndroidBridge; }
     function now() { return Date.now(); }
 
+    function sendInputFocus(focused) {
+        var b = bridge();
+        if (!b) return false;
+        if (typeof b.postMessage === 'function') {
+            b.postMessage(JSON.stringify({ type: 'inputFocus', focused: !!focused }));
+            return true;
+        }
+        if (typeof b.onInputFocus === 'function') {
+            b.onInputFocus(!!focused);
+            return true;
+        }
+        return false;
+    }
+
+    function sendTapAt(cssX, cssY, cssViewportWidth) {
+        var b = bridge();
+        if (!b) return false;
+        if (typeof b.postMessage === 'function') {
+            b.postMessage(JSON.stringify({
+                type: 'tapAt',
+                cssX: cssX,
+                cssY: cssY,
+                cssViewportWidth: cssViewportWidth
+            }));
+            return true;
+        }
+        if (typeof b.tapAt === 'function') {
+            b.tapAt(cssX, cssY, cssViewportWidth);
+            return true;
+        }
+        return false;
+    }
+
     function isEditable(el) {
         if (!el) return false;
         if (el.tagName === 'TEXTAREA' || el.isContentEditable) return true;
@@ -75,9 +108,29 @@
             Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5;
     }
 
-    // Segue l'elemento a ogni frame (scroll, caroselli animati, re-render) senza toccare il DOM del sito
+    // Segue l'elemento solo quando serve (focus, scroll, resize, mutazioni) invece di girare fisso a 60fps
     var lostSince = 0;
+    var rafId = 0;
+    var trackUntil = 0;
+    var MIN_SCAN_INTERVAL = 450;
+
+    function wakeTracker(durationMs) {
+        var until = now() + (durationMs || 800);
+        if (until > trackUntil) trackUntil = until;
+        if (!rafId && current && !mouseMode && !document.fullscreenElement) {
+            rafId = requestAnimationFrame(tick);
+        }
+    }
+
+    function stopTracker() {
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = 0;
+        }
+    }
+
     function tick() {
+        rafId = 0;
         if (current && !mouseMode && !document.fullscreenElement) {
             if (current.isConnected) {
                 lostSince = 0;
@@ -105,9 +158,14 @@
                 }
             }
         } else {
+            lostSince = 0;
             hideRing();
+            return;
         }
-        requestAnimationFrame(tick);
+
+        if (current && (now() < trackUntil || lostSince > 0)) {
+            rafId = requestAnimationFrame(tick);
+        }
     }
 
     // ---------------------------------------------------------------- raccolta elementi
@@ -115,7 +173,11 @@
         if (!window.MutationObserver) return;
         new MutationObserver(function (muts) {
             for (var i = 0; i < muts.length; i++) {
-                if (muts[i].type === 'childList') { domDirty = true; return; }
+                if (muts[i].type === 'childList') {
+                    domDirty = true;
+                    if (current && !mouseMode && !document.fullscreenElement) wakeTracker(450);
+                    return;
+                }
             }
         }).observe(document.documentElement, { childList: true, subtree: true });
     }
@@ -123,16 +185,19 @@
     function scanPointerElements() {
         var out = [];
         if (!document.body) return out;
+        var vh = window.innerHeight;
         var nodes = document.body.querySelectorAll(POINTER_SCAN_SEL);
         for (var i = 0; i < nodes.length; i++) {
             var el = nodes[i];
             if (el.id === 'fs-focus-ring') continue;
             // Le frecce dei caroselli sono gestite automaticamente da pageSlider
             if (el.matches(NEXT_HANDLE_SEL) || el.matches(PREV_HANDLE_SEL)) continue;
+            if (el.closest('a[href], button, select, textarea, input, [role="button"]')) continue;
+            var r = el.getBoundingClientRect();
+            if (r.width < 8 || r.height < 8 || r.bottom < -vh || r.top > vh * 2) continue;
             if (window.getComputedStyle(el).cursor !== 'pointer') continue;
             var p = el.parentElement;
             if (p && window.getComputedStyle(p).cursor === 'pointer') continue; // cursor è ereditato
-            if (el.closest('a[href], button, select, textarea, input, [role="button"]')) continue;
             out.push(el);
         }
         return out;
@@ -140,7 +205,7 @@
 
     function getPointerElements() {
         var t = now();
-        if (domDirty || t - lastScan > 2000) {
+        if ((domDirty && t - lastScan >= MIN_SCAN_INTERVAL) || t - lastScan > 2500) {
             pointerCache = scanPointerElements();
             domDirty = false;
             lastScan = t;
@@ -401,6 +466,7 @@
         el.classList.add('tv-active-focus');
         ringAnimUntil = now() + (fast ? 90 : 200);
         ensureVisible(el, fast);
+        wakeTracker(fast ? 500 : 900);
     }
 
     function focusNearCss(x, y, fast) {
@@ -527,15 +593,12 @@
 
     // Tap nativo: eventi "trusted" (necessari per fullscreen, autoplay e apertura tastiera)
     function nativeTap(el) {
-        var b = bridge();
-        if (!b || !b.tapAt) return false;
         var r = el.getBoundingClientRect();
         var x = r.left + r.width / 2, y = r.top + r.height / 2;
         if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
         var hit = document.elementFromPoint(x, y);
         if (!hit || !(hit === el || el.contains(hit))) return false;
-        b.tapAt(x, y, window.innerWidth);
-        return true;
+        return sendTapAt(x, y, window.innerWidth);
     }
 
     window.tvClick = function () {
@@ -548,10 +611,7 @@
         if (isEditable(el)) {
             ensureVisible(el, true);
             el.focus();
-            if (!nativeTap(el)) {
-                var b = bridge();
-                if (b && b.onInputFocus) b.onInputFocus(true);
-            }
+            if (!nativeTap(el)) sendInputFocus(true);
             return;
         }
         if (!nativeTap(el)) syntheticClick(el);
@@ -574,10 +634,7 @@
     window.tvTapActiveInput = function () {
         var el = document.activeElement;
         if (!isEditable(el)) return false;
-        if (!nativeTap(el)) {
-            var b = bridge();
-            if (b && b.onInputFocus) b.onInputFocus(true);
-        }
+        if (!nativeTap(el)) sendInputFocus(true);
         return true;
     };
 
@@ -633,6 +690,7 @@
             // Nessun elemento: scorri e riprova (contenuti caricati in lazy-load)
             window.scrollBy({ top: direction === 'ArrowUp' ? -300 : 300, behavior: fast ? 'auto' : 'smooth' });
             setTimeout(function () {
+                if (!current || !current.isConnected) return;
                 var again = findNext(direction, collectCandidates(), current.getBoundingClientRect());
                 if (again) setFocus(again, fast);
             }, fast ? 60 : 250);
@@ -641,6 +699,7 @@
 
     window.tvClearFocus = function () {
         mouseMode = true;
+        stopTracker();
         hideRing();
         if (current) {
             current.classList.remove('tv-active-focus');
@@ -713,14 +772,16 @@
 
     window.tvSetMouseMode = function (on) {
         mouseMode = !!on;
-        if (mouseMode) hideRing();
+        if (mouseMode) {
+            stopTracker();
+            hideRing();
+        }
     };
 
     // ---------------------------------------------------------------- tastiera virtuale
     document.addEventListener('focusin', function (e) {
         if (isEditable(e.target)) {
-            var b = bridge();
-            if (b && b.onInputFocus) b.onInputFocus(true);
+            sendInputFocus(true);
         }
     }, true);
 
@@ -729,8 +790,7 @@
         if (!isEditable(e.target)) return;
         setTimeout(function () {
             if (!isEditable(document.activeElement)) {
-                var b = bridge();
-                if (b && b.onInputFocus) b.onInputFocus(false);
+                sendInputFocus(false);
             }
         }, 300);
     }, true);
@@ -768,11 +828,25 @@
         }
     }
 
+    function onActivity() {
+        if (current && !mouseMode && !document.fullscreenElement) wakeTracker(450);
+    }
+
     function init() {
         injectStyles();
         observeDom();
+        window.addEventListener('scroll', onActivity, { capture: true, passive: true });
+        window.addEventListener('resize', onActivity, { passive: true });
+        document.addEventListener('transitionrun', onActivity, { capture: true, passive: true });
+        document.addEventListener('fullscreenchange', function () {
+            if (document.fullscreenElement) {
+                stopTracker();
+                hideRing();
+            } else if (current && !mouseMode) {
+                wakeTracker(450);
+            }
+        });
         scheduleInitialFocus();
-        requestAnimationFrame(tick);
     }
 
     if (document.readyState === 'loading') {

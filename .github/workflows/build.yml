@@ -27,29 +27,37 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Generate App Icons and Android TV Banner
-        run: |
-          pip install Pillow
-          python create_icons.py
-
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.4'
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build APK with Gradle
+      - name: Configure Release Signing
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          gradle assembleDebug assembleRelease --stacktrace
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "${RUNNER_TEMP}/release.jks"
+            echo "RELEASE_STORE_FILE=${RUNNER_TEMP}/release.jks" >> "$GITHUB_ENV"
+          fi
 
-      - name: Prepare APKs for Distribution
+      - name: Test, Lint and Build Release APK
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug assembleRelease --stacktrace
+
+      - name: Extract App Version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare APK for Distribution
         run: |
           mkdir -p release_apks
-          find app/build/outputs/apk/ -name "*.apk" -exec cp {} release_apks/ \;
+          cp app/build/outputs/apk/release/app-release.apk "release_apks/FreeStream-v${{ steps.version.outputs.version }}-release.apk"
           ls -la release_apks/
 
       - name: Upload APK as Workflow Artifact
@@ -59,12 +67,6 @@ jobs:
           path: release_apks/*.apk
           retention-days: 30
 
-      - name: Extract App Version
-        id: version
-        run: |
-          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
@@ -73,9 +75,9 @@ jobs:
           name: "FreeStream v${{ steps.version.outputs.version }} (Android TV)"
           body: |
             ## FreeStream v${{ steps.version.outputs.version }} - Android TV Edition 🚀
-            
+
             APK pronto per l'installazione su Smart TV, Fire TV Stick, Google TV e Android TV Box.
-            
+
             ### Caratteristiche principali:
             - **Risoluzione Automatica del Dominio**: rileva all'avvio l'indirizzo funzionante e aggiornato.
             - **Navigazione Ottimizzata per Telecomando (D-Pad)**: Spatial Navigation fluida con focus visivo cyan e zoom sulle locandine dei film/serie.

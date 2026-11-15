@@ -51,10 +51,10 @@ def is_official_host(hostname: str | None) -> bool:
 
 def origin_of(url: str) -> str | None:
     parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
         return None
-    port = f":{parsed.port}" if parsed.port else ""
-    return f"{parsed.scheme}://{parsed.hostname.lower()}{port}/"
+    port = f":{parsed.port}" if parsed.port and parsed.port != 443 else ""
+    return f"https://{parsed.hostname.lower()}{port}/"
 
 
 def is_genuine_page(resp: requests.Response) -> bool:

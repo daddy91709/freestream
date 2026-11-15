@@ -17,3 +17,4 @@ tools_poc/
 find_domain.py
 index.html
 *.apk
+__pycache__/
