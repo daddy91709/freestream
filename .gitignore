@@ -13,7 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
-create_icons.py
 find_domain.py
 domains.json
 index.html

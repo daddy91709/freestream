@@ -1,0 +1,30 @@
+/* Stili personalizzati per interfaccia Android TV */
+
+/* Nascondi scrollbar per un look da app nativa */
+::-webkit-scrollbar {
+    width: 0px !important;
+    height: 0px !important;
+    background: transparent !important;
+}
+
+/* Evidenziazione del focus per telecomando con D-Pad */
+*:focus,
+[data-tv-focused="true"] {
+    outline: 3px solid #00D2FF !important;
+    outline-offset: 4px !important;
+    transform: scale(1.06) !important;
+    box-shadow: 0 0 24px rgba(0, 210, 255, 0.75) !important;
+    transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease !important;
+    z-index: 99999 !important;
+}
+
+/* Ottimizza le schede dei film/serie per telecomando */
+a, button, [role="button"], .card, .slider-item {
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Assicura che i video HTML5 occupino tutto lo schermo */
+video {
+    outline: none !important;
+}
