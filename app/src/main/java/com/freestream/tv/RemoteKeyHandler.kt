@@ -11,6 +11,7 @@ class RemoteKeyHandler(
     private val keyboardBridge: SoftKeyboardBridge,
     private val cursorController: VirtualCursorController,
     private val isOverlayBlockingNavigation: () -> Boolean,
+    private val tryRecoverFromErrorBack: () -> Boolean,
     private val isCustomViewActive: () -> Boolean,
     private val hideCustomView: () -> Unit,
     private val evalJs: (String) -> Unit,
@@ -35,6 +36,12 @@ class RemoteKeyHandler(
         val keyCode = event.keyCode
         val action = event.action
 
+        // Tasto Indietro (BACK): sempre gestito uniformemente tramite handleBackPress()
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) handleBackPress()
+            return true
+        }
+
         // Schermata di errore o caricamento: lascia la navigazione nativa sul pulsante Riprova
         if (isOverlayBlockingNavigation()) {
             return null
@@ -44,12 +51,6 @@ class RemoteKeyHandler(
         // qui arrivano solo quando è chiusa, quindi le frecce servono per uscire dal campo.
         if (keyboardBridge.isInputFocused && !cursorController.isMouseMode) {
             when (keyCode) {
-                KeyEvent.KEYCODE_BACK -> {
-                    if (action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                        keyboardBridge.leaveInputField(evalJs)
-                    }
-                    return true
-                }
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (action == KeyEvent.ACTION_DOWN) {
@@ -109,13 +110,7 @@ class RemoteKeyHandler(
             }
         }
 
-        // 2. Tasto Indietro (BACK)
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) handleBack()
-            return true
-        }
-
-        // 3. Tasto OK / Invio: Pressione breve = Click, Pressione prolungata = Switch Cursore
+        // 2. Tasto OK / Invio: Pressione breve = Click, Pressione prolungata = Switch Cursore
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
             keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
@@ -174,7 +169,16 @@ class RemoteKeyHandler(
         longPressHandler.removeCallbacksAndMessages(null)
     }
 
-    private fun handleBack() {
+    fun handleBackPress() {
+        if (tryRecoverFromErrorBack()) return
+        if (isOverlayBlockingNavigation()) {
+            confirmExitOrToast()
+            return
+        }
+        if (keyboardBridge.isInputFocused && !cursorController.isMouseMode) {
+            keyboardBridge.leaveInputField(evalJs)
+            return
+        }
         if (cursorController.isMouseMode) {
             cursorController.toggleMouseMode()
             return
@@ -191,13 +195,17 @@ class RemoteKeyHandler(
                 webView.goBack()
                 return@evalJsWithResult
             }
-            val currentTime = SystemClock.uptimeMillis()
-            if (currentTime - lastBackPressTime < BACK_EXIT_WINDOW_MS) {
-                onExitConfirmed()
-            } else {
-                lastBackPressTime = currentTime
-                showBackExitToast()
-            }
+            confirmExitOrToast()
+        }
+    }
+
+    private fun confirmExitOrToast() {
+        val currentTime = SystemClock.uptimeMillis()
+        if (currentTime - lastBackPressTime < BACK_EXIT_WINDOW_MS) {
+            onExitConfirmed()
+        } else {
+            lastBackPressTime = currentTime
+            showBackExitToast()
         }
     }
 

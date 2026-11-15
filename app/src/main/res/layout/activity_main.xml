@@ -66,8 +66,11 @@
         android:background="@color/bg_dark">
 
         <TextView
+            android:id="@+id/tvErrorMessage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingHorizontal="32dp"
             android:text="@string/error_message"
             android:textColor="@color/text_muted"
             android:textSize="18sp"
