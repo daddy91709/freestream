@@ -9,7 +9,12 @@
     var RESUME_STORAGE_KEY = '__fs_resume_v1';
     var MAX_RESUME_ENTRIES = 80;
     var customWatchKey = null;
+    var externalResumePos = 0;
     var restoredForKey = null;
+    var lastSentKey = null;
+    var lastSentPos = -1;
+    var lastSentAt = 0;
+    var readyAnnounced = false;
     var osdEl = null;
     var osdTimer = null;
     var lastSeekAt = 0;
@@ -86,22 +91,67 @@
         } catch (e) { /* storage disabilitato o quota superata */ }
     }
 
+    function isCompleted(pos, dur, ended) {
+        if (ended) return true;
+        if (!isFinite(dur) || dur <= 60) return false;
+        var margin = Math.min(Math.max(dur * 0.05, 30), 180);
+        return pos >= dur - margin;
+    }
+
     function getSavedPosition(key) {
         var map = readResumeMap();
         var entry = map[key];
         return (entry && typeof entry.t === 'number' && isFinite(entry.t)) ? entry.t : 0;
     }
 
-    function savePosition(key, pos, dur) {
-        if (!key || !isFinite(pos) || !isFinite(dur) || dur <= 60) return;
+    function savePosition(key, pos, dur, ended) {
+        if (!key || !isFinite(pos) || pos < 0) return;
+        if (!ended && (!isFinite(dur) || dur <= 60)) return;
         var map = readResumeMap();
-        if (pos > 15 && pos < dur - 30) {
+        if (isCompleted(pos, dur, ended)) {
+            if (map[key]) {
+                delete map[key];
+                writeResumeMap(map);
+            }
+        } else if (pos >= 15) {
             map[key] = { t: Math.floor(pos), ts: Date.now() };
             writeResumeMap(map);
-        } else if (pos >= dur - 30 && map[key]) {
-            delete map[key];
-            writeResumeMap(map);
         }
+    }
+
+    function reportProgressToTop(key, pos, dur, ended, force) {
+        if (window.top === window) return;
+        if (!key || !isFinite(pos) || pos < 0) return;
+        if (!ended && (!isFinite(dur) || dur <= 60)) return;
+
+        var floorPos = Math.floor(pos);
+        var floorDur = isFinite(dur) && dur > 0 ? Math.floor(dur) : 0;
+        var nowMs = Date.now();
+        if (!force && !ended && key === lastSentKey &&
+            Math.abs(floorPos - lastSentPos) < 3 && (nowMs - lastSentAt) < 5000) {
+            return;
+        }
+        lastSentKey = key;
+        lastSentPos = floorPos;
+        lastSentAt = nowMs;
+
+        try {
+            window.top.postMessage({
+                __fsProgress: {
+                    watchKey: key,
+                    pos: floorPos,
+                    dur: floorDur,
+                    ended: !!ended
+                }
+            }, '*');
+        } catch (e) { /* ignore */ }
+    }
+
+    function announceAgentReady() {
+        if (window.top === window) return;
+        try {
+            window.top.postMessage({ __fsAgentReady: true }, '*');
+        } catch (e) { /* ignore */ }
     }
 
     function jw() {
@@ -143,25 +193,45 @@
         return null;
     }
 
+    function handleMediaEnded() {
+        var st = getMediaState();
+        var dur = (st && isFinite(st.dur) && st.dur > 0) ? st.dur : 0;
+        var pos = dur || (st && isFinite(st.pos) ? st.pos : 0);
+        var key = activeWatchKey();
+        savePosition(key, pos, dur, true);
+        reportProgressToTop(key, pos, dur, true, true);
+    }
+
     function tryAutoResume() {
         var key = activeWatchKey();
-        if (!key || restoredForKey === key) return;
+        if (!key) return;
         var st = getMediaState();
         if (!st || !isFinite(st.dur) || st.dur <= 60) return;
 
+        if (st.type === 'jw' && st.player && typeof st.player.on === 'function' && !st.player.__fsCompleteBound) {
+            st.player.__fsCompleteBound = true;
+            try {
+                st.player.on('complete', handleMediaEnded);
+            } catch (e) { /* ignore */ }
+        }
+
+        if (restoredForKey === key) return;
         restoredForKey = key;
-        var saved = getSavedPosition(key);
-        if (saved > 15 && saved < st.dur - 30 && st.pos < 10) {
+
+        var saved = externalResumePos > 15 ? externalResumePos : getSavedPosition(key);
+        if (saved > 15 && !isCompleted(saved, st.dur, false) && st.pos < 10) {
             if (st.type === 'jw') st.player.seek(saved);
             else st.player.currentTime = saved;
             showPlayerOsd('▶ Ripreso da ' + formatTime(saved));
         }
     }
 
-    function saveCurrentProgress() {
+    function saveCurrentProgress(force) {
         var st = getMediaState();
         if (!st) return;
-        savePosition(activeWatchKey(), st.pos, st.dur);
+        var key = activeWatchKey();
+        savePosition(key, st.pos, st.dur, false);
+        reportProgressToTop(key, st.pos, st.dur, false, !!force);
     }
 
     // Mostra i controlli del player simulando attività del mouse
@@ -217,6 +287,7 @@
                 if (state === 'playing' || state === 'buffering') {
                     p.pause();
                     showPlayerOsd('⏸ Pausa');
+                    saveCurrentProgress(true);
                 } else {
                     p.play();
                     showPlayerOsd('▶ Riproduzione');
@@ -227,12 +298,14 @@
             } else if (cmd === 'pause') {
                 p.pause();
                 showPlayerOsd('⏸ Pausa');
+                saveCurrentProgress(true);
             } else if (cmd === 'seek') {
                 var dur = p.getDuration() || Infinity;
                 var delta = computeSeekDelta(arg);
                 var target = Math.max(0, Math.min(dur - 1, (p.getPosition() || 0) + delta));
                 p.seek(target);
                 showSeekOsd(target);
+                saveCurrentProgress(true);
             } else if (cmd === 'next') {
                 var nb = document.querySelector('.jw-icon-next');
                 if (nb) nb.click();
@@ -253,6 +326,7 @@
             } else {
                 v.pause();
                 showPlayerOsd('⏸ Pausa');
+                saveCurrentProgress(true);
             }
         } else if (cmd === 'play') {
             v.play();
@@ -260,12 +334,14 @@
         } else if (cmd === 'pause') {
             v.pause();
             showPlayerOsd('⏸ Pausa');
+            saveCurrentProgress(true);
         } else if (cmd === 'seek') {
             var d = isFinite(v.duration) ? v.duration : Infinity;
             var vDelta = computeSeekDelta(arg);
             var vTarget = Math.max(0, Math.min(d, v.currentTime + vDelta));
             v.currentTime = vTarget;
             showSeekOsd(vTarget);
+            saveCurrentProgress(true);
         }
         poke();
         return true;
@@ -278,10 +354,15 @@
         }
     }
 
-    function relayWatchKey(key) {
+    function relayWatchKey(key, resumePos) {
         var frames = document.getElementsByTagName('iframe');
         for (var i = 0; i < frames.length; i++) {
-            try { frames[i].contentWindow.postMessage({ __fsWatchKey: key }, '*'); } catch (e) { /* ignore */ }
+            try {
+                frames[i].contentWindow.postMessage({
+                    __fsWatchKey: key,
+                    __fsResumePos: resumePos || 0
+                }, '*');
+            } catch (e) { /* ignore */ }
         }
     }
 
@@ -294,12 +375,19 @@
         if (!d || typeof d !== 'object') return;
         if (e.source === window.parent && window.parent !== window) {
             if (typeof d.__fsWatchKey === 'string' && d.__fsWatchKey) {
-                if (customWatchKey !== d.__fsWatchKey) {
+                var incomingPos = (typeof d.__fsResumePos === 'number' && isFinite(d.__fsResumePos) && d.__fsResumePos > 0)
+                    ? d.__fsResumePos : 0;
+                var keyChanged = customWatchKey !== d.__fsWatchKey;
+                var resumeUpgraded = incomingPos > 15 && incomingPos !== externalResumePos;
+                if (keyChanged || resumeUpgraded) {
                     customWatchKey = d.__fsWatchKey;
+                    if (incomingPos > 0 || keyChanged) {
+                        externalResumePos = incomingPos;
+                    }
                     restoredForKey = null;
                     tryAutoResume();
                 }
-                relayWatchKey(customWatchKey);
+                relayWatchKey(customWatchKey, externalResumePos);
             }
             if (d.__fsCmd) {
                 handle(d.__fsCmd, d.arg);
@@ -307,16 +395,30 @@
         }
     });
 
-    // Ascoltatori per salvataggio posizione e ripristino automatico all'avvio del video
-    document.addEventListener('loadedmetadata', tryAutoResume, true);
-    document.addEventListener('canplay', tryAutoResume, true);
+    function onMediaMetadataOrPlay() {
+        if (!readyAnnounced) {
+            readyAnnounced = true;
+            announceAgentReady();
+        }
+        tryAutoResume();
+    }
+
+    // Ascoltatori per salvataggio posizione, fine riproduzione e ripristino automatico
+    document.addEventListener('loadedmetadata', onMediaMetadataOrPlay, true);
+    document.addEventListener('canplay', onMediaMetadataOrPlay, true);
     document.addEventListener('playing', tryAutoResume, true);
-    document.addEventListener('pause', saveCurrentProgress, true);
-    window.addEventListener('pagehide', saveCurrentProgress);
+    document.addEventListener('pause', function () { saveCurrentProgress(true); }, true);
+    document.addEventListener('ended', handleMediaEnded, true);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) saveCurrentProgress(true);
+    });
+    window.addEventListener('pagehide', function () { saveCurrentProgress(true); });
     setInterval(function () {
         tryAutoResume();
-        saveCurrentProgress();
+        saveCurrentProgress(false);
     }, 5000);
+
+    announceAgentReady();
 
     if (window.top === window) window.fsPlayer = handle;
 })();

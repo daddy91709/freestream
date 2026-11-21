@@ -30,6 +30,8 @@ import com.freestream.tv.databinding.ActivityMainBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.net.URI
 
 class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
@@ -40,6 +42,7 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
     private lateinit var cursorController: VirtualCursorController
     private lateinit var remoteKeyHandler: RemoteKeyHandler
     private lateinit var webViewConfigurator: WebViewConfigurator
+    private lateinit var continueWatchingStore: ContinueWatchingStore
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -127,6 +130,8 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
             }
         )
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
+        continueWatchingStore = ContinueWatchingStore.from(applicationContext)
+        continueWatchingStore.pruneExpired()
         webViewConfigurator = WebViewConfigurator(applicationContext, this)
 
         binding.btnRetry.setOnClickListener {
@@ -225,6 +230,11 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
         binding.errorLayout.visibility = View.GONE
         if (!webView.hasFocus()) webView.requestFocus()
 
+        val host = url?.let { runCatching { URI(it).host }.getOrNull() }
+        if (DomainResolver.isOfficialHost(host)) {
+            pushContinueWatchingToWebView()
+        }
+
         if (cursorController.isMouseMode) {
             js("window.tvClearFocus && window.tvClearFocus()")
         }
@@ -284,6 +294,22 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
 
     override fun onRenderProcessGone(crashedWebView: WebView) {
         recreateWebView(crashedWebView)
+    }
+
+    override fun onContinueWatchingSyncRequested() {
+        pushContinueWatchingToWebView()
+    }
+
+    override fun onContinueWatchingProgress(payloadJson: String) {
+        if (continueWatchingStore.upsertFromJson(payloadJson)) {
+            pushContinueWatchingToWebView()
+        }
+    }
+
+    override fun onContinueWatchingMetaUpdate(payloadJson: String) {
+        if (continueWatchingStore.updateMetaFromJson(payloadJson)) {
+            pushContinueWatchingToWebView()
+        }
     }
 
     // ---------------------------------------------------------------- Helpers
@@ -444,6 +470,13 @@ class MainActivity : AppCompatActivity(), WebViewConfigurator.Callbacks {
                 packageManager.getPackageInfo(packageName, 0).versionName
             }
         }.getOrNull().orEmpty().ifBlank { "1.0.0" }
+    }
+
+    private fun pushContinueWatchingToWebView() {
+        val quoted = JSONObject.quote(continueWatchingStore.toJsonArrayString())
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029")
+        js("window.__fsSetContinueWatching && window.__fsSetContinueWatching($quoted)")
     }
 
     private fun js(code: String) {

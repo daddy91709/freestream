@@ -78,13 +78,15 @@
     function syncWatchKeyToFrames() {
         if (!isPlayerPage()) return;
         var key = location.pathname + location.search;
+        var resumePos = (typeof window.__fsGetResumePos === 'function') ? window.__fsGetResumePos(key) : 0;
         var frames = document.getElementsByTagName('iframe');
         for (var i = 0; i < frames.length; i++) {
             try {
-                frames[i].contentWindow.postMessage({ __fsWatchKey: key }, '*');
+                frames[i].contentWindow.postMessage({ __fsWatchKey: key, __fsResumePos: resumePos || 0 }, '*');
             } catch (e) { /* ignore */ }
         }
     }
+    window.__fsSyncWatchKey = syncWatchKeyToFrames;
 
     // ---------------------------------------------------------------- stili + anello di focus
     function injectStyles() {
@@ -875,6 +877,9 @@
 
     // ---------------------------------------------------------------- navigazione SPA (Inertia)
     function onRouteChange() {
+        try {
+            window.dispatchEvent(new Event('fs-route-change'));
+        } catch (e) { /* ignore */ }
         setTimeout(function () {
             if (isPlayerPage()) {
                 if (current) {

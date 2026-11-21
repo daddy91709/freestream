@@ -37,6 +37,9 @@ class WebViewConfigurator(
         fun onNativeTap(cssX: Float, cssY: Float, cssViewportWidth: Float)
         fun onExternalLinkBlocked()
         fun onRenderProcessGone(crashedWebView: WebView)
+        fun onContinueWatchingSyncRequested()
+        fun onContinueWatchingProgress(payloadJson: String)
+        fun onContinueWatchingMetaUpdate(payloadJson: String)
     }
 
     private val adblockJs = readAssetFile(context, "adblock.js").orEmpty()
@@ -44,7 +47,8 @@ class WebViewConfigurator(
     private val topFrameJs: String = run {
         val css = readAssetFile(context, "tv_styles.css").orEmpty()
         val nav = readAssetFile(context, "tv_navigation.js").orEmpty()
-        "if (window.top === window) {\nwindow.__fsCss = ${JSONObject.quote(css)};\n$nav\n}"
+        val continueWatching = readAssetFile(context, "continue_watching.js").orEmpty()
+        "if (window.top === window) {\nwindow.__fsCss = ${JSONObject.quote(css)};\n$nav\n$continueWatching\n}"
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
@@ -217,6 +221,9 @@ class WebViewConfigurator(
                     callbacks.onNativeTap(x, y, vw)
                 }
             }
+            "cwRequestSync" -> callbacks.onContinueWatchingSyncRequested()
+            "cwProgress" -> callbacks.onContinueWatchingProgress(data)
+            "cwUpdateMeta" -> callbacks.onContinueWatchingMetaUpdate(data)
         }
     }
 
@@ -248,6 +255,33 @@ class WebViewConfigurator(
                     cssX >= 0f && cssY >= 0f && cssViewportWidth > 0f
                 ) {
                     callbacks.onNativeTap(cssX, cssY, cssViewportWidth)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun cwRequestSync() {
+            webView.post {
+                if (isMainFrameTrusted()) {
+                    callbacks.onContinueWatchingSyncRequested()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun cwSaveProgress(payloadJson: String) {
+            webView.post {
+                if (isMainFrameTrusted()) {
+                    callbacks.onContinueWatchingProgress(payloadJson)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun cwUpdateMeta(payloadJson: String) {
+            webView.post {
+                if (isMainFrameTrusted()) {
+                    callbacks.onContinueWatchingMetaUpdate(payloadJson)
                 }
             }
         }

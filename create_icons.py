@@ -79,8 +79,20 @@ def generate_square_icon(size=512, shape="square"):
     return img
 
 
+def generate_adaptive_background(size=432):
+    """Livello sfondo 108dp per Adaptive Icon Android (API 26+)."""
+    return background(size, size).convert("RGB")
+
+
+def generate_adaptive_foreground(size=432):
+    """Livello primo piano 108dp con logo nella safe-zone centrale (66dp)."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw_play_logo(img, size / 2, size / 2, size * 0.54)
+    return img
+
+
 def generate_tv_banner(width=640, height=360):
-    """Banner 16:9 full-bleed per Fire TV / Android TV (android:banner)."""
+    """Banner 16:9 full-bleed per Android TV / Leanback (android:banner)."""
     img = background(width, height)
     draw = ImageDraw.Draw(img)
 
@@ -128,39 +140,35 @@ if __name__ == "__main__":
         (144, "mipmap-xxhdpi"),
         (192, "mipmap-xxxhdpi"),
     ]
-    tv_mipmaps = [
-        (320, 180, "mipmap-television-mdpi"),
-        (480, 270, "mipmap-television-tvdpi"),
-        (480, 270, "mipmap-television-hdpi"),
-        (640, 360, "mipmap-television-xhdpi"),
-        (960, 540, "mipmap-television-xxhdpi"),
-        (1280, 720, "mipmap-television-xxxhdpi"),
+    banner_drawables = [
+        (320, 180, "drawable"),
+        (480, 270, "drawable-hdpi"),
+        (640, 360, "drawable-xhdpi"),
+        (960, 540, "drawable-xxhdpi"),
     ]
     folders = (
-        ["drawable", "drawable-xhdpi", "drawable-xxhdpi"]
+        ["drawable-nodpi"]
         + [f for _, f in phone_mipmaps]
-        + [f for _, _, f in tv_mipmaps]
+        + [f for _, _, f in banner_drawables]
     )
     for folder in folders:
         os.makedirs(f"{res}/{folder}", exist_ok=True)
 
     generate_square_icon(512, "rounded").save(f"{res}/drawable/app_icon.png")
 
-    # Icone 1:1 per smartphone e tablet
+    # Livelli Adaptive Icon (API 26+) per smartphone/tablet senza cornice rimpicciolita
+    generate_adaptive_background(432).save(f"{res}/drawable-nodpi/ic_launcher_background.png")
+    generate_adaptive_foreground(432).save(f"{res}/drawable-nodpi/ic_launcher_foreground.png")
+
+    # Icone 1:1 legacy per API < 26 e per Fire TV (che renderizza ic_launcher in slot 1:1)
     square = generate_square_icon(512, "square")
     round_icon = generate_square_icon(512, "round")
     for size, folder in phone_mipmaps:
         square.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher.png")
         round_icon.resize((size, size), Image.Resampling.LANCZOS).save(f"{res}/{folder}/ic_launcher_round.png")
 
-    # Banner 16:9 per Fire TV / Android TV (uiMode=television) in tutte le densità
-    for w, h, folder in tv_mipmaps:
-        tv_tile = generate_tv_banner(w, h)
-        tv_tile.save(f"{res}/{folder}/ic_launcher.png")
-        tv_tile.save(f"{res}/{folder}/ic_launcher_round.png")
+    # Banner 16:9 per Android TV / Google TV / Leanback su tutte le densità (320x180 dp)
+    for w, h, folder in banner_drawables:
+        generate_tv_banner(w, h).save(f"{res}/{folder}/tv_banner.png")
 
-    # Banner 16:9 per Fire TV / Android TV su tutte le densità (320x180 dp)
-    generate_tv_banner(320, 180).save(f"{res}/drawable/tv_banner.png")
-    generate_tv_banner(640, 360).save(f"{res}/drawable-xhdpi/tv_banner.png")
-    generate_tv_banner(960, 540).save(f"{res}/drawable-xxhdpi/tv_banner.png")
-    print("Icone smartphone 1:1, mipmap TV 16:9 e banner TV generati.")
+    print("Icone 1:1, Adaptive Icon (API 26+) e banner TV 16:9 generati.")
